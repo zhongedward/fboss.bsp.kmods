@@ -1,0 +1,38 @@
+name: Build source RPM
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  srpm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install rpmbuild
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
+      - name: Build source RPM
+        run: |
+          SPEC=rpmbuild/fboss_bsp_kmods.spec
+          NAME=$(grep '^Name:' "$SPEC" | awk '{print $2}')
+          VERSION=$(grep '^Version:' "$SPEC" | awk '{print $2}')
+          mkdir -p rpmbuild_out/{SOURCES,SPECS,SRPMS}
+          tar czf rpmbuild_out/SOURCES/${NAME}-${VERSION}.tar.gz \
+            --transform "s,^,${NAME}-${VERSION}/," \
+            kmods/ rpmbuild/
+          rpmbuild -bs --define "_topdir $(pwd)/rpmbuild_out" "$SPEC"
+
+      - name: Upload source RPM
+        uses: actions/upload-artifact@v4
+        with:
+          name: srpm
+          path: rpmbuild_out/SRPMS/*.src.rpm
